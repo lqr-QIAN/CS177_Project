@@ -1,0 +1,55 @@
+import pandas as pd
+
+def merge_and_clean_drug_info():
+    # 读取CSV文件
+    print("Reading CSV files...")
+    drug_info_used = pd.read_csv('data/raw_data/drug_info_used.csv')
+    merged_drug_info = pd.read_csv('data/raw_data/merged_drug_info.csv')
+    
+    print("\nOriginal data shapes:")
+    print(f"drug_info_used: {drug_info_used.shape}")
+    print(f"merged_drug_info: {merged_drug_info.shape}")
+    
+    # 合并数据
+    print("\nMerging data...")
+    # 使用outer join来保留所有药物
+    merged_df = pd.merge(drug_info_used, merged_drug_info, 
+                        on='dname', how='outer', suffixes=('_used', '_merged'))
+    
+    # 合并SMILES列（优先使用used中的SMILES）
+    merged_df['canonical_smiles'] = merged_df['canonical_smiles_used'].fillna(merged_df['canonical_smiles_merged'])
+    
+    # 删除多余的列
+    merged_df = merged_df[['dname', 'canonical_smiles']]
+    
+    # 删除任何包含空值的行
+    print("\nRemoving rows with missing values...")
+    merged_df = merged_df.dropna()
+    
+    # 按SMILES长度排序并保留最短的SMILES
+    print("\nKeeping shortest SMILES for each drug...")
+    merged_df['smiles_length'] = merged_df['canonical_smiles'].str.len()
+    merged_df = merged_df.sort_values('smiles_length')
+    merged_df = merged_df.drop_duplicates(subset='dname', keep='first')
+    merged_df = merged_df.drop('smiles_length', axis=1)
+    
+    # 保存结果
+    print("\nSaving results...")
+    merged_df.to_csv('data/raw_data/merged_drug_info_new.csv', index=False)
+    
+    # 打印统计信息
+    print("\nResults:")
+    print(f"Final shape: {merged_df.shape}")
+    print(f"Number of unique drugs: {merged_df['dname'].nunique()}")
+    print(f"Number of unique SMILES: {merged_df['canonical_smiles'].nunique()}")
+    
+    # 检查是否有重复的药物名称
+    duplicates = merged_df[merged_df.duplicated(subset='dname', keep=False)]
+    if len(duplicates) > 0:
+        print("\nWarning: Found duplicate drug names:")
+        print(duplicates)
+    else:
+        print("\nNo duplicate drug names found.")
+
+if __name__ == '__main__':
+    merge_and_clean_drug_info() 
